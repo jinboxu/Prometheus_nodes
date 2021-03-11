@@ -62,8 +62,6 @@ rate(container_cpu_usage_seconds_total{image!="",container_name!="POD"}[5m]) / o
 | container_memory_failures_total    | counter | 次          | 累计的内存申请错误次数                                       |
 
 > container_memory_max_usage_bytes > container_memory_usage_bytes >= container_memory_working_set_bytes > container_memory_rss
->
-> 
 
 
 
