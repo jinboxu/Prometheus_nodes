@@ -175,7 +175,9 @@ p74
 
 
 
-#### 4. 磁盘使用率
+#### 4. 磁盘
+
+###### 4.1 磁盘使用率
 
 p76  p120
 
@@ -228,6 +230,61 @@ rule:
 
 
 
+###### 4.2 [磁盘IO](https://www.ipcpu.com/2021/04/prometheus-node_exporter/)
+
+对于磁盘问题，我们主要关注以下几个指标：
+
+> 磁盘空间使用率、磁盘inode使用率（df -h和df -i命令）
+> 磁盘读写次数IOPS (iostat中的r/s、w/s)
+> 磁盘读写带宽 (iostat中的rkB/s、wkB/s)
+> 磁盘IO利用率%util (iostat中的%util)
+> 磁盘队列数 (iostat中的avgqu-sz)
+> 磁盘读写的延迟时间 (iostat中的r_await、w_await)
+
+
+
+record rule:
+
+```yaml
+- name: node_disk_io
+  rules:
+  - record: node_disk_iops_read
+    expr: rate(node_disk_reads_completed_total[5m])
+  - record: node_disk_iops_write
+    expr: rate(node_disk_writes_completed_total[5m])
+  - record: node_disk_util_percent
+    expr: rate(node_disk_io_time_seconds_total[5m])
+  - record: node_disk_io_queue
+    expr: rate(node_disk_io_time_weighted_seconds_total[5m])
+  - record: node_disk_r_await
+    expr: rate(node_disk_read_time_seconds_total[5m]) / rate(node_disk_reads_completed_total[5m]) * 1000
+  - record: node_disk_w_await
+    expr: rate(node_disk_write_time_seconds_total[5m]) / rate(node_disk_writes_completed_total[5m]) * 1000
+```
+
+
+
+grafana Query:
+
+```
+# IOPS
+node_disk_iops_read{kubernetes_node=~"$instance",device=~"$device"}
+node_disk_iops_write{kubernetes_node=~"$instance",device=~"$device"}
+# 磁盘IO利用率%util
+node_disk_util_percent{kubernetes_node=~"$instance",device=~"$device"} * 100
+# 磁盘IO队列数
+node_disk_io_queue{kubernetes_node=~"$instance",device=~"$device"}
+# 读写延迟
+node_disk_r_await{kubernetes_node=~"$instance",device=~"$device"}
+node_disk_w_await{kubernetes_node=~"$instance",device=~"$device"}
+```
+
+> 通过节点标签和设备标签对应的grafana变量值过滤
+
+
+
+
+
 #### 5. 节点上的服务
 
 p122
@@ -277,7 +334,7 @@ prometheus-server容器、prometheus-server-configmap-reload容器、pod(所以�
 对应pod cpu和内存使用率的计算，我们只需要关注pod里面每个容器的cpu和内存的使用率即可,所以我们PromQL应该这样:
 
 - 去掉pause容器，因为container_spec_cpu_quota指标没有pause容器的时间序列，所以这个直接忽略
-- **向量匹配同时去掉针对整个pod cpu或内存资源使用率**，我们有一下两种方法:
+- **向量匹配同时去掉针对整个pod cpu或内存资源使用率**，我们有以下两种方法:
 
 ```
 # 1 
@@ -291,7 +348,7 @@ rate(container_cpu_usage_seconds_total{image!="", pod_name="prometheus-0"}[5m]) 
 
 查询结果:
 
-<img src="D:\github\Prometheus_notes\pics\prometheus-pod.jpg" style="zoom:150%;" />
+<img src="pics\prometheus-pod.jpg" style="zoom:150%;" />
 
 
 
@@ -452,6 +509,80 @@ kube-state-metrics基于 client-go 开发，轮询 Kubernetes API，并将 Kuber
 
 
 
+- 检查pod是否调度成功
+
+```
+      - alert: PodStatusUnschedulable
+        expr: kube_pod_status_unschedulable == 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Pod is unschedulable
+          description: Pod {{ $labels.namespace }} / {{ $labels.pod }} was unschedulable
+                       within the last two minutes.
+```
+
+
+
+- 检查cronjob
+
+```
+      - alert: CronjobStatusActive
+        expr: kube_cronjob_status_active > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: parallel job?
+          description: cronjob {{ $labels.namespace }} / {{ $labels.cronjob }} 活动数量为 {{ $value }}.
+      - alert: JobStatusFailed
+        expr: kube_job_failed > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Job is failed
+          description: Failed job {{ $labels.namespace }} / {{ $labels.job_name }}
+```
+
+> - ```kube_cronjob_status_active``` 表示当前活动的job数量，当我们的定时任务不是一个需要并发执行的任务的时候，很可能上一个任务已经无法正常结束了
+> - ```kube_job_status_failed``` 是一个counter类型，并且已经执行过的任务也会存在（所有不能直接使用kube_job_status_failed > 1 表达式获取，否则会有很多重复无关的告警）
+
+
+
+- 检查endpoint
+
+上面我们通过检查副本数、pod重启情况、pod是否调度， 通过这些指标来判断pod是否已经在我们期望的状态下运行。但是还不够，比如在 就绪探针检查失败的情况下，endpoint会被从 Service 的负载均衡器中剔除。
+
+```yaml
+- alert: EndpointsAddressNotReady
+  expr: kube_endpoint_address_not_ready > 0
+  for: 1m
+  labels:
+    severity: warning
+  annotations:
+    description: endpoint {{ $labels.namespace }} / {{ $labels.endpoint }} not ready number is {{ $value }}
+    summary: kube endpoint not ready 
+- alert: EndpointsAddressAvailable
+  expr: kube_endpoint_address_available == 0
+  labels:
+    severity: critical
+  annotations:
+    description: endpoint {{ $labels.namespace }} / {{ $labels.endpoint }} is not available
+    summary: kube endpoint available number is 0 ! 
+```
+
+kube_endpoint_address_not_ready  #Gauge类型，endpoint中not ready的addresses数
+kube_endpoint_address_available  #Gauge类型，endpoint中可用的addresses数。
+
+
+
+- 第一个告警表示有不可用的endpoint，比如就绪探针检查失败，会被从 Service 的负载均衡器中剔除，但是在多副本集的情况下，可能还有其他pod是正常的，这样就不会很影响应用功能，所以设置其告警级别为 warning ，持续时间为 1分钟 触发告警
+- 第二个告警表示service后端没有可用的endpoint了，这个应该马上告警，因为没有任何可用的pod了。
+
+
+
 ---
 
 
@@ -554,4 +685,9 @@ histogram_quantile(0.99, sum by (job,instance, le) (rate(apiserver_request_laten
 
 > 此警报计算API请求的错误率，使用正则表达式来匹配任何以5xx开头的错误。如果5分钟向量的百分比超过5%，则触发警报。
 
+
+
+
+
+#### 11. 
 
