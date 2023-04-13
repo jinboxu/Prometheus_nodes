@@ -70,14 +70,14 @@ Prometheus 客户端库主要提供Counter、Gauge、**Histogram和Summery**四�
 
   - 观察桶的累计计数器，暴露为 <basename>_bucket{le=”<upper inclusive bound>”}
   - 所有观察值的总和，暴露为<basename>_sum
-  - 已观察到的事件的计数，暴露为<basename>_count（等同于<basename>_bucket{le=”+Inf”}）
+  - 已观察到的事件的计数，暴露为<basename>\_count（等同于<basename>_bucket{le=”+Inf”}）
 
   > 官方手册:    https://prometheus.io/docs/practices/histograms/
 >
   > 参考手册:    https://blog.csdn.net/wtan825/article/details/94616813
-  
+
   **Summery**：**类似于Histogram**，*Summery*样本观察（通常是请求持续时间和响应大小）。虽然它也提供观测总数和所有观测值的总和，但它计算滑动时间窗内的可配置分位数。在获取数据期间，具有<basename>基本度量标准名称的Summery会显示多个时间序列：
-  
+
   - 流动φ分位数（0≤φ≤1）的观察事件，暴露为<basename>{quantile=”<φ>”}
   - 所有观察值的总和，暴露为<basename>_sum
   - 已经观察到的事件的计数，暴露为<basename>_count
@@ -132,7 +132,7 @@ container_memory_working_set_bytes{id="/"}/ ignoring(id) machine_memory_bytes*10
 
 - label_join()
 
-函数可以将时间序列 v 中多个标签 `src_label` 的值，通过 `separator` 作为连接符写入到一个新的标签 `dst_label` 中。可以有多个 src_label 标签。
+函数可以将向量 v 中多个标签 `src_label` 的值，通过 `separator` 作为连接符写入到一个新的标签 `dst_label` 中。可以有多个 src_label 标签。
 
 > ```
 > label_join(v instant-vector, dst_label string, separator string, src_label_1 string, src_label_2 string, ...)
@@ -140,7 +140,7 @@ container_memory_working_set_bytes{id="/"}/ ignoring(id) machine_memory_bytes*10
 
 
 
-例如，以下表达式返回的时间序列多了一个 `foo` 标签，标签值为 `etcd,etcd-k8s`：
+例如，以下表达式返回的向量多了一个 `foo` 标签，标签值为 `etcd,etcd-k8s`：
 
 ```
 up{endpoint="api",instance="192.168.123.248:2379",job="etcd",namespace="monitoring",service="etcd-k8s"}
@@ -154,7 +154,7 @@ label_join(up{endpoint="api",instance="192.168.123.248:2379",job="etcd",namespac
 
 - label_replace()
 
-该函数会依次对 v 中的每一条时间序列进行处理，通过 `regex` 匹配 src_label 的值，并将匹配部分 `relacement` 写入到 dst_label 标签中。
+该函数会依次对 v 中的每个向量进行处理，通过 `regex` 匹配 src_label 的值，并将匹配部分 `relacement` 写入到 dst_label 标签中。
 
 > ```
 > label_replace(v instant-vector, dst_label string, replacement string, src_label string, regex string)

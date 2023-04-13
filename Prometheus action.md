@@ -280,6 +280,10 @@ node_disk_w_await{kubernetes_node=~"$instance",device=~"$device"}
 ```
 
 > 通过节点标签和设备标签对应的grafana变量值过滤
+>
+> 新版本的采集指标标签甚至名称可能会变，比如标签 kubernetes_namespace -> namespace, kubernetes_node -> node , 我们只需要做一点调整即可
+
+
 
 
 
@@ -334,15 +338,14 @@ prometheus-server容器、prometheus-server-configmap-reload容器、pod(所以�
 对应pod cpu和内存使用率的计算，我们只需要关注pod里面每个容器的cpu和内存的使用率即可,所以我们PromQL应该这样:
 
 - 去掉pause容器，因为container_spec_cpu_quota指标没有pause容器的时间序列，所以这个直接忽略
-- **向量匹配同时去掉针对整个pod cpu或内存资源使用率**，我们有以下两种方法:
+- **向量匹配同时去掉针对整个pod cpu或内存资源使用率，image!=""**
 
 ```
-# 1 
 ## 向量匹配1: container_spec_cpu_quota比container_cpu_usage_seconds_total向量只多了cpu标签，我们可以使用ignoring忽略这个标签
    向量匹配2: 使用on操作符
-   排除瞬时向量(pod中所以cpu或内存使用率)，通过描述pod的向量没有image标签
+   排除瞬时向量(整个pod中cpu或内存使用率)，通过描述pod的向量没有image标签
 rate(container_cpu_usage_seconds_total{image!="", pod_name="prometheus-0"}[5m]) / ignoring(cpu)  (container_spec_cpu_quota/100000) *100
-
+或
 rate(container_cpu_usage_seconds_total{image!="", pod_name="prometheus-0"}[5m]) / on(id,pod_name,container_name,namespace) (container_spec_cpu_quota/100000) *100
 ```
 
@@ -371,7 +374,7 @@ rate(container_cpu_usage_seconds_total{image!=""}[5m]) / ignoring(cpu)  (contain
 
 > 分别表示 "分配给进程使用实际物理内存"和“容器内存的限额”
 >
-> 不同的是，这两个向量的维度(标签匹配)是一致的,同时没有设置容器内存限制的时间序列值为0(cpu限制没有设置就没有该时间序列)，比如pause容器的container_spec_memory_limit_bytes默认都为0
+> 不同的是，这两个向量的维度(标签匹配)是不一致的,同时没有设置容器内存限制的时间序列值为0(cpu限制没有设置就没有该时间序列)，比如pause容器的container_spec_memory_limit_bytes默认都为0
 
 
 
@@ -689,5 +692,13 @@ histogram_quantile(0.99, sum by (job,instance, le) (rate(apiserver_request_laten
 
 
 
-#### 11. 
+#### 11. kubelet
+
+**`cAdvisor`已经内置在了 kubelet 组件之中，所以我们不需要单独去安装**
+
+
+
+
+
+
 

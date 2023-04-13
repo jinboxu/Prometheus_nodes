@@ -20,6 +20,15 @@ https://yunlzheng.gitbook.io/prometheus-book/part-ii-prometheus-jin-jie/sd/servi
 
 
 
+```
+#source标签从现有标签中选择值。 它们的内容使用配置的分隔符连接起来，并与配置的正则表达式匹配，以进行替换，保留和放置操作。
+[ source_labels: '[' <labelname> [, ...] ']' ]
+
+
+```
+
+
+
 
 
 内置函数：
@@ -28,3 +37,8 @@ https://yunlzheng.gitbook.io/prometheus-book/part-ii-prometheus-jin-jie/sd/servi
 https://prometheus.fuckcloudnative.io/di-san-zhang-prometheus/di-4-jie-cha-xun/functions   内置函数
 ```
 
+
+
+
+
+https://yunlzheng.gitbook.io/prometheus-book/part-ii-prometheus-jin-jie/sd/service-discovery-with-relabel
